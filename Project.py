@@ -12,12 +12,16 @@ Dependencies:
 - Joblib 1.4.2 (For paralleliztion)
 """
 
+# install dataset database
+# pip install ucimlrepo
+
 # import packages
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
 from joblib import Parallel, delayed
 from ucimlrepo import fetch_ucirepo
+import time
 
 
 class TreeNode:
@@ -137,7 +141,7 @@ class myDecisionTreeClassifier:
         """
         Recursively builds the decision tree.
 
-        Args:
+        Parameters:
             values (DataFrame): The feature values.
             targets (DataFrame): The target labels.
             depth (int): The current depth of the tree.
@@ -184,7 +188,7 @@ class myDecisionTreeClassifier:
         """
         Recursively traverses the decision tree according to feature-splits per node
 
-        Args:
+        Parameters:
             node (TreeNode): the root of the decision tree
             value (DataFrame): The feature values.
 
@@ -229,7 +233,7 @@ class myRandomForestClassifier:
             """
             Trains the random forest by fitting multiple decision trees to subsets of the data.
 
-            Args:
+            Parameters:
                 index (int): The current number of trees in the forest, unused in function
 
             Returns:
@@ -254,13 +258,13 @@ class myRandomForestClassifier:
             tree.fit(values_subset, targets_subset)
             return tree
 
-        self.forest = Parallel(n_jobs=4)(delayed(train_tree)(i) for i in range(self.n_estimators)) #n_job set 4 instead of -1 due to memory usage problems
+        self.forest = Parallel(n_jobs=-1)(delayed(train_tree)(i) for i in range(self.n_estimators))
 
     def predict(self, values):
         """
         Predicts the class labels for a given set of feature values by recursively traversing each tree and taking the majority vote for each sample's class label.
 
-        Args:
+        Parameters:
            values (DataFrame): The feature values.
 
         Returns:
@@ -285,16 +289,54 @@ y = y.map(lambda x: bool_map.get(x))
 # 0.7 train-test split
 X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.7)
 
-# model training
+# model trainings
+start = time.perf_counter()
+dtc = myDecisionTreeClassifier()
+dtc.fit(X_train, y_train)
+end = time.perf_counter()
+
+print('dtc training time:', end - start)
+
+start = time.perf_counter()
 rf = myRandomForestClassifier()
 rf.fit(X_train, y_train)
+end = time.perf_counter()
+print('rf training time:', end - start)
 
 # model testing
+dtc_preds = dtc.predict(X_test)
 preds = rf.predict(X_test)
 
 matches = 0
+false_pos = 0
+false_neg = 0
+for x in range(len(y_test)):
+    if (dtc_preds[x] == y_test.iloc[x].item()):
+        matches += 1
+    elif (dtc_preds[x] == 1):
+        false_pos += 1
+    else:
+        false_neg += 1
+
+negs = len(y_test[y_test['Diagnosis'] == 0])
+posi = len(y_test) - negs
+
+print('dtc Score:: ', matches / len(y_test))
+print('dtc false positive rate: ', false_pos / posi)
+print('dtc false negative rate: ', false_neg / negs)
+
+matches = 0
+false_pos = 0
+false_neg = 0
+
 for x in range(len(y_test)):
     if (preds[x] == y_test.iloc[x].item()):
         matches += 1
+    elif(preds[x] == 1):
+        false_pos += 1
+    else:
+        false_neg += 1
 
-print(matches / len(y_test))
+print('rf Score: ', matches / len(y_test))
+print('rf false positive rate: ', false_pos / posi)
+print('rf false negative rate: ', false_neg / negs)
